@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 任务管理器</title>
+    <!-- 使用 CDN 加载 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 使用 CDN 加载 Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .completed { text-decoration: line-through; color: #9ca3af; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-10 px-4">
+    <div id="app" class="max-w-2xl mx-auto space-y-8">
+        <!-- 标题 -->
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-blue-600">AI 任务管理器</h1>
+            <p class="text-gray-500 mt-2">简单、高效、智能</p>
+        </header>
+
+        <!-- 添加任务 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="space-y-4">
+                <input id="taskTitle" type="text" placeholder="任务标题..." class="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <textarea id="taskDesc" placeholder="任务描述（可选）..." class="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" rows="2"></textarea>
+                <button onclick="addTask()" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">添加任务</button>
+            </div>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-semibold">任务列表</h2>
+                <div class="space-x-2">
+                    <button onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">上一页</button>
+                    <span id="pageInfo" class="text-sm text-gray-600">第 1 页</span>
+                    <button onclick="changePage(1)" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">下一页</button>
+                </div>
+            </div>
+            <div id="taskList" class="space-y-3">
+                <!-- 任务项会在这里动态生成 -->
+                <p class="text-center text-gray-400 py-10">正在加载任务...</p>
+            </div>
+        </div>
+
+        <!-- AI 助手 -->
+        <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
+            <h2 class="text-xl font-bold text-blue-700 mb-4">AI 智能助手</h2>
+            <div class="flex gap-2">
+                <input id="aiQuery" type="text" placeholder="向 AI 提问..." class="flex-1 px-4 py-2 rounded-lg border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="askAi()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">提问</button>
+            </div>
+            <div id="aiAnswer" class="mt-4 p-4 bg-white rounded-lg border border-blue-100 hidden text-gray-700 whitespace-pre-wrap">
+                <!-- AI 回答 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentPage = 1;
+        let totalPages = 1;
+
+        // 获取任务列表
+        async function fetchTasks() {
+            try {
+                const res = await axios.get(`${API_BASE}/tasks?page=${currentPage}&page_size=5`);
+                const tasks = res.data.data;
+                totalPages = res.data.total_pages;
+                
+                document.getElementById('pageInfo').innerText = `第 ${res.data.page} / ${totalPages || 1} 页`;
+                
+                const listEl = document.getElementById('taskList');
+                if (tasks.length === 0) {
+                    listEl.innerHTML = '<p class="text-center text-gray-400 py-10">暂无任务</p>';
+                    return;
+                }
+
+                listEl.innerHTML = tasks.map(task => `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start gap-3">
+                                <input type="checkbox" ${task.completed ? 'checked' : ''} 
+                                    onclick="toggleTask(${task.id}, '${task.title}', '${task.description}', ${task.completed})"
+                                    class="mt-1.5 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <div>
+                                    <h3 class="font-medium text-lg ${task.completed ? 'completed' : ''}">${task.title}</h3>
+                                    <p class="text-gray-500 text-sm mt-1">${task.description || '无描述'}</p>
+                                </div>
+                            </div>
+                            <button onclick="deleteTask(${task.id})" class="text-red-400 hover:text-red-600">删除</button>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-50">
+                            <button onclick="summarizeTask(${task.id}, this)" class="text-xs font-medium text-blue-500 hover:underline">AI 总结</button>
+                            <div class="summary-box mt-2 text-sm text-blue-800 bg-blue-50 p-2 rounded hidden"></div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('获取任务失败', err);
+            }
+        }
+
+        // 添加任务
+        async function addTask() {
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDesc').value;
+            if (!title) return alert('请输入标题');
+
+            try {
+                await axios.post(`${API_BASE}/tasks`, { title, description });
+                document.getElementById('taskTitle').value = '';
+                document.getElementById('taskDesc').value = '';
+                fetchTasks();
+            } catch (err) {
+                alert('添加失败');
+            }
+        }
+
+        // 更新状态
+        async function toggleTask(id, title, description, currentStatus) {
+            try {
+                await axios.post(`${API_BASE}/tasks/update/${id}`, {
+                    title: title,
+                    description: description,
+                    completed: !currentStatus
+                });
+                fetchTasks();
+            } catch (err) {
+                alert('更新失败');
+            }
+        }
+
+        // 删除任务
+        async function deleteTask(id) {
+            if (!confirm('确定删除吗？')) return;
+            try {
+                await axios.post(`${API_BASE}/tasks/delete/${id}`);
+                fetchTasks();
+            } catch (err) {
+                alert('删除失败');
+            }
+        }
+
+        // AI 总结
+        async function summarizeTask(id, btn) {
+            const box = btn.nextElementSibling;
+            box.innerText = '正在思考...';
+            box.classList.remove('hidden');
+            try {
+                const res = await axios.post(`${API_BASE}/tasks/${id}/summarize`);
+                box.innerText = res.data.summary;
+            } catch (err) {
+                box.innerText = '总结失败';
+            }
+        }
+
+        // AI 助手提问
+        async function askAi() {
+            const query = document.getElementById('aiQuery').value;
+            const answerBox = document.getElementById('aiAnswer');
+            if (!query) return;
+
+            answerBox.innerText = 'AI 正在思考...';
+            answerBox.classList.remove('hidden');
+
+            try {
+                const res = await axios.post(`${API_BASE}/assistant/ask`, { query });
+                answerBox.innerText = res.data.answer;
+            } catch (err) {
+                answerBox.innerText = '请求失败';
+            }
+        }
+
+        // 翻页
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                fetchTasks();
+            }
+        }
+
+        // 初始化
+        fetchTasks();
+    </script>
+</body>
+</html>
