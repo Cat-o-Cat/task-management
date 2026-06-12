@@ -119,22 +119,12 @@ def summarize_task(task_id: int):
 
 @app.post("/assistant/ask")
 def assistant_ask(query_data: AssistantQuery):
-    pending_titles = []
-    for t in tasks_db:
-        if not t["completed"]:
-            pending_titles.append(t["title"])
-            if len(pending_titles) == 5:
-                break
-    info = ""
-    for title in pending_titles:
-        info += f"- {title}\n"
-
     try:
         response = client.chat.completions.create(
             model="deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": "你是个智能助手。"},
-                {"role": "user", "content": f"用户问：{query_data.query}\n任务：\n{info}"},
+                {"role": "user", "content": query_data.query}
             ]
         )
         return {"answer": response.choices[0].message.content}
